@@ -18,8 +18,8 @@ export const generateImage = async (req, res) => {
       return res.json({ success: false, message: 'Missing Details' })
     }
 
-    // Checking User creditBalance
-    if (user.creditBalance === 0 || userModel.creditBalance < 0) {
+    // Checking User creditBalance (fixed: was checking userModel instead of user)
+    if (user.creditBalance === 0 || user.creditBalance < 0) {
       return res.json({ success: false, message: 'No Credit Balance', creditBalance: user.creditBalance })
     }
 

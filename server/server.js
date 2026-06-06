@@ -8,7 +8,6 @@ import imageRouter from './routes/imageRoutes.js';
 // App Config
 const PORT = process.env.PORT || 4000
 const app = express();
-await connectDB()
 
 // Intialize Middlewares
 app.use(express.json())
@@ -20,4 +19,12 @@ app.use('/api/image',imageRouter)
 
 app.get('/', (req,res) => res.send("API Working"))
 
-app.listen(PORT, () => console.log('Server running on port ' + PORT));
+// Connect to DB then start server
+connectDB()
+    .then(() => {
+        app.listen(PORT, () => console.log('Server running on port ' + PORT));
+    })
+    .catch((err) => {
+        console.error('Failed to connect to database:', err.message);
+        process.exit(1);
+    });

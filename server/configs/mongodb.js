@@ -6,6 +6,14 @@ const connectDB = async () => {
         console.log("Database Connected");
     })
 
+    mongoose.connection.on('error', (err) => {
+        console.error("Database Connection Error:", err.message);
+    })
+
+    if (!process.env.MONGODB_URI) {
+        throw new Error('MONGODB_URI environment variable is not set');
+    }
+
     await mongoose.connect(`${process.env.MONGODB_URI}/ai-image`)
 
 }

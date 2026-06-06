@@ -5,6 +5,27 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import stripe from "stripe";
 
+// Lazy initialization for Razorpay (avoids crash if env vars are missing at module load)
+let razorpayInstance = null;
+const getRazorpayInstance = () => {
+    if (!razorpayInstance) {
+        razorpayInstance = new razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
+    }
+    return razorpayInstance;
+};
+
+// Lazy initialization for Stripe (avoids crash if env vars are missing at module load)
+let stripeInstance = null;
+const getStripeInstance = () => {
+    if (!stripeInstance) {
+        stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+    }
+    return stripeInstance;
+};
+
 // API to register user
 const registerUser = async (req, res) => {
 
@@ -14,6 +35,12 @@ const registerUser = async (req, res) => {
         // checking for all data to register user
         if (!name || !email || !password) {
             return res.json({ success: false, message: 'Missing Details' })
+        }
+
+        // Check if user already exists
+        const existingUser = await userModel.findOne({ email });
+        if (existingUser) {
+            return res.json({ success: false, message: 'Email already registered. Please login.' })
         }
 
         // hashing user password
@@ -44,6 +71,11 @@ const loginUser = async (req, res) => {
 
     try {
         const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.json({ success: false, message: 'Email and password are required' })
+        }
+
         const user = await userModel.findOne({ email })
 
         if (!user) {
@@ -69,7 +101,7 @@ const loginUser = async (req, res) => {
 const userCredits = async (req, res) => {
     try {
 
-        const { userId } = req.body
+        const userId = req.userId
 
         // Fetching userdata using userId
         const user = await userModel.findById(userId)
@@ -80,12 +112,6 @@ const userCredits = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 }
-
-// razorpay gateway initialize
-const razorpayInstance = new razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
 
 
 // Payment API to add credits
@@ -149,7 +175,7 @@ const paymentRazorpay = async (req, res) => {
         }
 
         // Creating razorpay Order
-        await razorpayInstance.orders.create(options, (error, order) => {
+        await getRazorpayInstance().orders.create(options, (error, order) => {
             if (error) {
                 console.log(error);
                 return res.json({ success: false, message: error });
@@ -170,7 +196,7 @@ const verifyRazorpay = async (req, res) => {
         const { razorpay_order_id } = req.body;
 
         // Fetching order data from razorpay
-        const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
+        const orderInfo = await getRazorpayInstance().orders.fetch(razorpay_order_id);
 
         // Checking for payment status
         if (orderInfo.status === 'paid') {
@@ -198,9 +224,6 @@ const verifyRazorpay = async (req, res) => {
         res.json({ success: false, message: error.message });
     }
 }
-
-// Stripe Gateway Initialize
-const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
 
 // Payment API to add credits ( Stripe )
 const paymentStripe = async (req, res) => {
@@ -270,7 +293,7 @@ const paymentStripe = async (req, res) => {
             quantity: 1
         }]
 
-        const session = await stripeInstance.checkout.sessions.create({
+        const session = await getStripeInstance().checkout.sessions.create({
             success_url: `${origin}/verify?success=true&transactionId=${newTransaction._id}`,
             cancel_url: `${origin}/verify?success=false&transactionId=${newTransaction._id}`,
             line_items: line_items,
